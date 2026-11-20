@@ -79,7 +79,7 @@ typedef struct {
     uint8_t hex;
 
     /* save location: /ext[/<base>]/<name> */
-    char bases[MAX_DIRS + 1][NAME_LEN]; // [0] = SD root
+    char bases[MAX_DIRS + 2][NAME_LEN]; // [0] = app data, [1] = SD root
     uint8_t base_count;
     uint8_t base_idx;
     char name[NAME_LEN];
@@ -139,7 +139,12 @@ static void file_put(App* app, const uint8_t* d, size_t n) {
 }
 
 static void log_dir(App* app, FuriString* out) {
-    if(app->base_idx == 0)
+    if(app->base_idx == 0) {
+        /* default: /ext/apps_data/uart_logger */
+        furi_string_set(out, APP_DATA_PATH(""));
+        furi_string_left(out, furi_string_size(out) - 1);
+        storage_common_resolve_path_and_ensure_app_directory(app->storage, out);
+    } else if(app->base_idx == 1)
         furi_string_printf(out, "/ext/%s", app->name);
     else
         furi_string_printf(out, "/ext/%s/%s", app->bases[app->base_idx], app->name);
@@ -185,16 +190,16 @@ static void file_close(App* app) {
 }
 
 static void scan_bases(App* app) {
-    strcpy(app->bases[0], "SD root");
-    app->base_count = 1;
+    strcpy(app->bases[0], "App data");
+    strcpy(app->bases[1], "SD root");
+    app->base_count = 2;
     File* dir = storage_file_alloc(app->storage);
     if(storage_dir_open(dir, "/ext")) {
         FileInfo fi;
         char nm[NAME_LEN];
-        while(app->base_count <= MAX_DIRS && storage_dir_read(dir, &fi, nm, sizeof(nm))) {
+        while(app->base_count < MAX_DIRS + 2 && storage_dir_read(dir, &fi, nm, sizeof(nm))) {
             if(!file_info_is_dir(&fi) || nm[0] == '.') continue;
-            if(strcmp(nm, app->name) == 0) continue; // log folder itself
-            strlcpy(app->bases[app->base_count++], nm, NAME_LEN);
+                        strlcpy(app->bases[app->base_count++], nm, NAME_LEN);
         }
     }
     storage_dir_close(dir);
